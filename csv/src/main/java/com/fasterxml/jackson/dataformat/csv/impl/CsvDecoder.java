@@ -81,6 +81,8 @@ public class CsvDecoder
 
     protected int _escapeChar;
 
+    protected int _maxTokenLength = -1;
+
     /*
     /**********************************************************************
     /* Input handling, state
@@ -168,6 +170,8 @@ public class CsvDecoder
      * in the end it'll be converted to 1-based)
      */
     protected int _tokenInputCol = 0;
+
+    protected int _tokenLength = 0;
 
     /*
     /**********************************************************************
@@ -283,6 +287,7 @@ public class CsvDecoder
         _separatorChar = schema.getColumnSeparator();
         _quoteChar = schema.getQuoteChar();
         _escapeChar = schema.getEscapeChar();
+        _maxTokenLength = schema.getMaxTokenLength();
         if (!_allowComments) {
             _allowComments = schema.allowsComments();
         }
@@ -627,6 +632,7 @@ public class CsvDecoder
     public String nextString() throws IOException
     {
         _numTypesValid = NR_UNKNOWN;
+        _tokenLength = 0;
         
         if (_pendingLF > 0) { // either pendingLF, or closed
             if (_inputSource != null) { // if closed, we just need to return null
@@ -666,6 +672,7 @@ public class CsvDecoder
         }
         char[] outBuf = _textBuffer.emptyAndGetCurrentSegment();
         outBuf[0] = (char) i;
+        _tokenLength++;
         int outPtr = 1;
 
         if (i == _escapeChar) {
@@ -709,7 +716,10 @@ public class CsvDecoder
                     break;
                 }
             }
-            outBuf[outPtr++] = c;
+            if (_maxTokenLength == -1 || _tokenLength < _maxTokenLength) {
+                outBuf[outPtr++] = c;
+                _tokenLength++;
+            }
         }
         // ok, either input or output across buffer boundary, offline
         _inputPtr = ptr;
@@ -793,7 +803,10 @@ public class CsvDecoder
                         continue main_loop;
                     }
                 }
-                outBuf[outPtr++] = (char) c;
+                if (_maxTokenLength == -1 || _tokenLength < _maxTokenLength) {
+                    outBuf[outPtr++] = (char) c;
+                    _tokenLength++;
+                }
             }
             _inputPtr = ptr;
         }
@@ -854,12 +867,18 @@ public class CsvDecoder
                     } else if (c == _escapeChar) {
                         _inputPtr = ptr;
                         c = _unescape();
-                        outBuf[outPtr++] = c;
+                        if (_maxTokenLength == -1 || _tokenLength < _maxTokenLength) {
+                            outBuf[outPtr++] = c;
+                            _tokenLength++;
+                        }
                         // May have passed input boundary, need to re-set
                         continue main_loop;
                     }
                 }
-                outBuf[outPtr++] = c;
+                if (_maxTokenLength == -1 || _tokenLength < _maxTokenLength) {
+                    outBuf[outPtr++] = c;
+                    _tokenLength++;
+                }
                 if (ptr >= max) {
                     _inputPtr = ptr;
                     continue main_loop;
@@ -870,7 +889,10 @@ public class CsvDecoder
             if (_inputPtr < _inputEnd || loadMore()) { 
                 if (_inputBuffer[_inputPtr] == _quoteChar) { // doubled up, append
                     // note: should have enough room, is safe
-                    outBuf[outPtr++] = (char) _quoteChar;
+                    if (_maxTokenLength == -1 || _tokenLength < _maxTokenLength) {
+                        outBuf[outPtr++] = (char) _quoteChar;
+                        _tokenLength++;
+                    }
                     ++_inputPtr;
                     continue main_loop;
                 }
