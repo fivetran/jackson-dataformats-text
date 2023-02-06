@@ -1,4 +1,4 @@
-package @package@;
+package com.fasterxml.jackson.dataformat.csv;
 
 import com.fasterxml.jackson.core.Version;
 import com.fasterxml.jackson.core.Versioned;
